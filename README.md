@@ -24,7 +24,7 @@ CGMap is a Python tool for coarse-grain mapping of molecular dynamics trajectori
 ### Installing from source
 
 ```bash
-git clone https://github.com/yourusername/cgmap.git
+git clone https://github.com/Chenghao-Wu/cgmap.git
 cd cgmap
 pip install .
 ```
@@ -38,22 +38,13 @@ cgmap --dump trajectory.dump --system system.yaml --output cg_system
 ```
 
 ### Command-line Options
-usage: cgmap [-h] --dump DUMP --system SYSTEM [--output OUTPUT]
+
+```bash
+cgmap [-h] --dump DUMP --system SYSTEM [--output OUTPUT]
 [--format {xyz,data,npz}] [--wrap WRAP]
 [--separate-xyz] [--frame FRAME]
 [--log-dir LOG_DIR] [--debug]
-optional arguments:
--h, --help show this help message and exit
---dump DUMP Input LAMMPS dump file
---system SYSTEM System configuration YAML file
---output OUTPUT Output file prefix (default: cg_system)
---wrap WRAP output coordinates in wrapped form (default: True)
---format {xyz,data,npz}
-Output format: xyz, data, or npz (default: npz)
---separate-xyz Write separate XYZ files for each frame
---frame FRAME Frame index to write for LAMMPS data file (default: 0)
---log-dir LOG_DIR Directory for log file (default: no file logging)
---debug Enable debug logging
+```
 
 ### Example System Configuration (system.yaml)
 
@@ -62,7 +53,7 @@ system:
   names:
     - "mapping_wat.yaml"
   numbers:
-    - 256
+    - 1
 ```
 
 ### Example Mapping Configuration (mapping_wat.yaml)
@@ -77,10 +68,40 @@ site-types:
 config:
   - anchor: 0
     offset: 3
-    repeat: 256
+    repeat: 900
     sites:
       - ["WAT", 0]
 ```
+
+#### Configuration File Structure
+
+The mapping configuration file consists of two main sections: `site-types` and `config`.
+
+##### Site Types Section
+The `site-types` section defines how atomic positions are mapped to coarse-grained (CG) sites:
+- Each entry (e.g., `WAT`) represents a CG site type
+- `index`: List of atomic indices to be mapped to this CG site
+- `x-weight`: Weights for position mapping (e.g., center of mass)
+- `f-weight`: Weights for force mapping
+
+##### Config Section
+The `config` section defines how the mapping is applied across the system:
+- `anchor`: Starting index in the atomic configuration
+- `offset`: Number of atoms per mapping unit (typically atoms per molecule)
+- `repeat`: Number of times to repeat this mapping pattern
+- `sites`: List of CG sites to create, each defined by:
+  - Site type name (e.g., "WAT")
+  - Local offset within the group
+
+#### Example Explained
+In the example above:
+- Three atoms (indices 0,1,2) are mapped to one WAT bead
+- Position mapping uses weights [16.0, 1.0, 1.0] (typical for water O:H:H mass ratio)
+- The pattern is repeated 900 times (for 256 water molecules)
+- Each water molecule takes 3 atoms (offset=3)
+- The mapping starts from the first atom (anchor=0)
+
+This mapping would process a trajectory of 2700 atoms (900 water molecules × 3 atoms) into 900 CG beads.
 
 ## Output Formats
 
