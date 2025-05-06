@@ -10,105 +10,182 @@ Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Requires-Python: >=3.8
 Description-Content-Type: text/markdown
+License-File: LICENSE
 Requires-Dist: numpy
 Requires-Dist: pyyaml
 
 # CGMap
 
-A tool for coarse-grain mapping of molecular dynamics trajectories.
+CGMap is a Python tool for coarse-grain mapping of molecular dynamics trajectories. It provides efficient mapping of atomistic trajectories to coarse-grained representations with support for various output formats.
+
+## Features
+
+- Read LAMMPS dump files
+- Configurable coarse-graining mapping through YAML files
+- Multiple output formats supported:
+  - XYZ trajectory files
+  - LAMMPS data files
+  - Compressed NPZ files
+- Coordinate wrapping for periodic boundary conditions
+- Detailed logging system
+- Command-line interface
 
 ## Installation
 
+### Requirements
+- Python >= 3.8
+- NumPy
+- PyYAML
+
+### Installing from source
+
 ```bash
+git clone https://github.com/Chenghao-Wu/cgmap.git
+cd cgmap
 pip install .
 ```
 
 ## Usage
 
+### Basic Command
+
 ```bash
 cgmap --dump trajectory.dump --system system.yaml --output cg_system
 ```
 
-### Command line options: 
+### Command-line Options
+
+```bash
+cgmap [-h] --dump DUMP --system SYSTEM [--output OUTPUT]
+[--format {xyz,data,npz}] [--wrap WRAP]
+[--separate-xyz] [--frame FRAME]
+[--log-dir LOG_DIR] [--debug]
 ```
 
-3. Create a `__init__.py` file in the cgmap package directory:
+### Example System Configuration (system.yaml)
 
-```python:development/cgmap/cgmap/__init__.py
-from .cgmap import main
-from .read_lammps import read_dump_file, get_frame
-
-__version__ = "0.1.0"
+```yaml
+system:
+  names:
+    - "mapping_wat.yaml"
+  numbers:
+    - 1
 ```
 
-4. Create a `.gitignore` file:
+### Example Mapping Configuration (mapping_wat.yaml)
 
-```text:development/cgmap/.gitignore
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+```yaml
+site-types:
+  WAT:
+    index: [0, 1, 2]
+    x-weight: [16.0, 1.0, 1.0]
+    f-weight: [1.0, 1.0, 1.0]
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# Environment
-.env
-.venv
-env/
-venv/
-ENV/
-
-# Output files
-*.xyz
-*.data
-*.npz
+config:
+  - anchor: 0
+    offset: 3
+    repeat: 900
+    sites:
+      - ["WAT", 0]
 ```
 
-5. Optional: Create a LICENSE file (e.g., MIT License):
+#### Configuration File Structure
 
-```text:development/cgmap/LICENSE
-MIT License
+The mapping configuration file consists of two main sections: `site-types` and `config`.
 
-Copyright (c) [year] [fullname]
+##### Site Types Section
+The `site-types` section defines how atomic positions are mapped to coarse-grained (CG) sites:
+- Each entry (e.g., `WAT`) represents a CG site type
+- `index`: List of atomic indices to be mapped to this CG site
+- `x-weight`: Weights for position mapping (e.g., center of mass)
+- `f-weight`: Weights for force mapping
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+##### Config Section
+The `config` section defines how the mapping is applied across the system:
+- `anchor`: Starting index in the atomic configuration
+- `offset`: Number of atoms per mapping unit (typically atoms per molecule)
+- `repeat`: Number of times to repeat this mapping pattern
+- `sites`: List of CG sites to create, each defined by:
+  - Site type name (e.g., "WAT")
+  - Local offset within the group
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+#### Example Explained
+In the example above:
+- Three atoms (indices 0,1,2) are mapped to one WAT bead
+- Position mapping uses weights [16.0, 1.0, 1.0] (typical for water O:H:H mass ratio)
+- The pattern is repeated 900 times (for 256 water molecules)
+- Each water molecule takes 3 atoms (offset=3)
+- The mapping starts from the first atom (anchor=0)
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+This mapping would process a trajectory of 2700 atoms (900 water molecules × 3 atoms) into 900 CG beads.
+
+## Output Formats
+
+### XYZ Format
+- Single trajectory file or separate files per frame
+- Simple format for visualization
+```bash
+cgmap --dump traj.dump --system system.yaml --format xyz
 ```
 
-Your directory structure should look like this:
+### LAMMPS Data Format
+- Full atom style
+- Includes box dimensions and atom types
+```bash
+cgmap --dump traj.dump --system system.yaml --format data --frame 0
+```
+
+### NPZ Format
+- Compressed NumPy format
+- Contains coordinates, forces, site types, and box dimensions
+```bash
+cgmap --dump traj.dump --system system.yaml --format npz
+```
+
+## Logging
+
+Enable detailed logging with the `--debug` flag and specify a log directory:
+```bash
+cgmap --dump traj.dump --system system.yaml --log-dir ./logs --debug
+```
+
+## Examples
+
+1. Basic coarse-graining with NPZ output:
+```bash
+cgmap --dump trajectory.dump --system system.yaml
+```
+
+2. Generate XYZ trajectory with wrapped coordinates:
+```bash
+cgmap --dump trajectory.dump --system system.yaml --format xyz --wrap True
+```
+
+3. Create LAMMPS data file for a specific frame:
+```bash
+cgmap --dump trajectory.dump --system system.yaml --format data --frame 10
+```
+
+4. Generate separate XYZ files for each frame:
+```bash
+cgmap --dump trajectory.dump --system system.yaml --format xyz --separate-xyz
+```
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Citation
+
+If you use CGMap in your research, please cite:
+
+@software{cgmap2025,
+  author = {Wu, Zhenghao},
+  title = {CGMap: A Tool for Coarse-Grain Mapping of Molecular Dynamics Trajectories},
+  year = {2024},
+  url = {https://github.com/yourusername/cgmap}
+}

@@ -22,6 +22,7 @@ optional arguments:
                         Output format: xyz, data, or npz (default: npz)
   --separate-xyz        Write separate XYZ files for each frame
   --frame FRAME         Frame index to write for LAMMPS data file (default: 0)
+  --target all
 """
 
 def setup_logger(output_dir=None, debug=False):
@@ -87,12 +88,18 @@ def read_mapping_file(filepath):
         logger.error(f"Error parsing YAML file: {e}")
         return None
 
-def cg_map(frame_data,system_data):
+def cg_map(frame_data,system_data,target='all'):
     logger = logging.getLogger('cgmap')
     logger.info("Starting coarse-graining mapping")
     
     xyz = get_frame(frame_data,'xyz')
-    forces = get_frame(frame_data,'force')
+    if target == 'coord':
+        forces=np.array([])
+    elif target == 'all':
+        forces = get_frame(frame_data,'force')
+    else:
+        logger.error(f"Error selecting target: {target}")
+
     ixiyiz = get_frame(frame_data,'ixiyiz')
     box = get_frame(frame_data,'box')
     atom_id=0
@@ -136,12 +143,19 @@ def cg_map(frame_data,system_data):
 
                 _unwrap_coord = _site_ixiyiz * box + _site_xyz 
                 #print(_unwrap_coord)
-                _x_weighted_sum = np.einsum("fd,cf->cd",_unwrap_coord,x_weights)
-                _x_weighted = _x_weighted_sum/x_weights.sum()
-                
-                _cg_coord = _x_weighted
-                _cg_forces = np.einsum("fd,cf->cd",_site_forces,f_weights)
-
+                if target == 'coord':
+                    _x_weighted_sum = np.einsum("fd,cf->cd",_unwrap_coord,x_weights)
+                    _x_weighted = _x_weighted_sum/x_weights.sum()
+                    _cg_coord = _x_weighted
+                    _cg_forces = np.array([])
+                elif target == 'all':
+                    _x_weighted_sum = np.einsum("fd,cf->cd",_unwrap_coord,x_weights)
+                    _x_weighted = _x_weighted_sum/x_weights.sum()
+                    _cg_coord = _x_weighted
+                    _cg_forces = np.einsum("fd,cf->cd",_site_forces,f_weights)
+                else:
+                    logger.error(f"Error selecting target: {target}")
+        
                 cg_group_site.append(mol_name)
                 cg_group_coord.append(_cg_coord.reshape(-1))
                 cg_group_force.append(_cg_forces.reshape(-1))
@@ -374,6 +388,9 @@ def parse_arguments():
     parser.add_argument('--separate-xyz', action='store_true',
                       help='Write separate XYZ files for each frame')
     
+    parser.add_argument('--target', type=str, default='all',
+                      help='select the target property for coarse-graining, default: all (coordinates and forces)')
+    
     # LAMMPS data output options
     parser.add_argument('--frame', type=int, default=0,
                       help='Frame index to write for LAMMPS data file (default: 0)')
@@ -416,7 +433,7 @@ def main():
     for index, time_step in enumerate(list(dump_data.keys())):
         logger.info(f"Processing frame {index+1}/{n_frames}")
         frame_data = dump_data[time_step]
-        cg_group_site, cg_group_coord, cg_group_force, cg_box = cg_map(frame_data, system_data)
+        cg_group_site, cg_group_coord, cg_group_force, cg_box = cg_map(frame_data, system_data,target=args.target)
         
         if args.wrap:
             logger.debug("Wrapping coordinates")

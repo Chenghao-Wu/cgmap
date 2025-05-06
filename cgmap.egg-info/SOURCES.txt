@@ -1,3 +1,4 @@
+LICENSE
 README.md
 setup.py
 cgmap/__init__.py
